@@ -15,7 +15,14 @@ router.get("/:id", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-
+router.get("/", async (req, res) => {
+  try {
+    const articles = await Article.find().populate("author", "email");
+    res.json(articles);
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+});
 // add article
 router.post("/", protect, async (req, res) => {
   const { title, content } = req.body;
