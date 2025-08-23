@@ -2,19 +2,37 @@ import express from "express";
 import protect from "../middleware/auth.middleware.js";
 import Article from "../models/Article.js";
 
-
 const router = express.Router();
 
-// get single article
-router.get("/:id", async (req, res) => {
+/**
+ * @route GET /articles/:locale/:slug
+ * @desc Get single article by locale + slug
+ * @access Public
+ */
+router.get("/:locale/:slug", async (req, res) => {
+  const { locale, slug } = req.params;
+  if (!["fr", "nl"].includes(locale)) {
+    return res.status(400).json({ message: "Invalid locale" });
+  }
+
   try {
-    const article = await Article.findById(req.params.id);
+    const article = await Article.findOne({ [`translations.${locale}.slug`]: slug }).populate("author", "email");
     if (!article) return res.status(404).json({ message: "Not found" });
-    res.json(article);
+
+    res.json({
+      ...article.toObject(),
+      translation: article.translations[locale] // return only the requested locale content
+    });
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
 });
+
+/**
+ * @route GET /articles
+ * @desc Get all articles (with both translations)
+ * @access Public
+ */
 router.get("/", async (req, res) => {
   try {
     const articles = await Article.find().populate("author", "email");
@@ -23,27 +41,43 @@ router.get("/", async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
-// add article
+
+/**
+ * @route POST /articles
+ * @desc Add new article with FR + NL translations
+ * @access Private (protected)
+ */
 router.post("/", protect, async (req, res) => {
-  const { title, content } = req.body;
+  const { coverPic, tags, keywords, translations } = req.body;
+
+  if (!translations?.fr?.title || !translations?.nl?.title) {
+    return res.status(400).json({ message: "Both French and Dutch titles are required" });
+  }
 
   try {
     const article = await Article.create({
-      title,
-      content,
-      author: req.user._id,
+      coverPic,
+      tags,
+      keywords,
+      translations,
+      author: req.user._id
     });
+
     res.status(201).json(article);
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
 });
 
-// edit article
+/**
+ * @route PATCH /articles/:id
+ * @desc Edit article by ID
+ * @access Private (protected)
+ */
 router.patch("/:id", protect, async (req, res) => {
   try {
     const article = await Article.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
+      new: true
     });
     if (!article) return res.status(404).json({ message: "Not found" });
     res.json(article);
@@ -52,7 +86,11 @@ router.patch("/:id", protect, async (req, res) => {
   }
 });
 
-// delete article
+/**
+ * @route DELETE /articles/:id
+ * @desc Delete article by ID
+ * @access Private (protected)
+ */
 router.delete("/:id", protect, async (req, res) => {
   try {
     const article = await Article.findByIdAndDelete(req.params.id);
