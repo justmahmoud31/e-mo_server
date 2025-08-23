@@ -1,6 +1,7 @@
 import express from "express";
 import protect from "../middleware/auth.middleware.js";
 import Article from "../models/Article.js";
+import { upload } from "../config/multer.js";
 
 const router = express.Router();
 
@@ -47,24 +48,26 @@ router.get("/", async (req, res) => {
  * @desc Add new article with FR + NL translations
  * @access Private (protected)
  */
-router.post("/", protect, async (req, res) => {
-  const { coverPic, tags, keywords, translations } = req.body;
-
-  if (!translations?.fr?.title || !translations?.nl?.title) {
-    return res.status(400).json({ message: "Both French and Dutch titles are required" });
-  }
-
+router.post("/", protect, upload.single("coverPic"), async (req, res) => {
   try {
+    const { tags, keywords, translations } = JSON.parse(req.body.data); // rest of payload as JSON
+    const coverPic = req.file ? `/uploads/articles/${req.file.filename}` : null;
+
+    if (!translations?.fr?.title || !translations?.nl?.title) {
+      return res.status(400).json({ message: "Both French and Dutch titles are required" });
+    }
+
     const article = await Article.create({
       coverPic,
       tags,
       keywords,
       translations,
-      author: req.user._id
+      author: req.user._id,
     });
 
     res.status(201).json(article);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ message: "Server error" });
   }
 });
